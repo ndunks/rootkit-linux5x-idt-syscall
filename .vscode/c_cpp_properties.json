@@ -1,0 +1,36 @@
+{
+    "configurations": [
+        {
+            "name": "Linux5.6.3",
+            "includePath": [
+                "/usr/lib/gcc/x86_64-linux-gnu/10/include",
+                "/rifin/app/linux-5.6.3/include",
+                "/rifin/app/linux-5.6.3/include/uapi",
+                "/rifin/app/linux-5.6.3/include/generated/uapi",
+                "/rifin/app/linux-5.6.3/arch/x86/include",
+                "/rifin/app/linux-5.6.3/arch/x86/include/generated",
+                "/rifin/app/linux-5.6.3/arch/x86/include/generated/uapi",
+                "/rifin/app/linux-5.6.3/arch/x86/include/uapi"
+            ],
+            "defines": [
+                "MODULE=",
+                "__KERNEL__=",
+                "KBUILD_BASENAME=\"get_syscall\"",
+                "KBUILD_MODNAME=\"get_syscall\""
+            ],
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++14",
+            "intelliSenseMode": "linux-gcc-x64",
+            "compilerArgs": [
+                "-nostdinc",
+                "-isystem",
+                "-include",
+                "./include/linux/kconfig.h",
+                "-include",
+                "./include/linux/compiler_types.h"
+            ]
+        }
+    ],
+    "version": 4
+}

