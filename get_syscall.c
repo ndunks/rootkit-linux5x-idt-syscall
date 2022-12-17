@@ -4,6 +4,7 @@
 #include <linux/slab.h>
 #include <linux/version.h>
 #include <asm/pgtable.h>
+#include "get_syscall.h"
 
 typedef void (*fun)(void);
 static fun *table;
@@ -131,15 +132,30 @@ static int find_syscall_table64_ia32(void)
 // Using 32 Bit syscall, because the kernel is compiled with IA32 FLAG. and I targeting IT
 // https://elixir.bootlin.com/linux/v5.6.3/source/arch/x86/entry/syscalls/syscall_32.tbl
 // 1	i386	exit			sys_exit			__ia32_sys_exit
-#define target_syscall 1
+// 5	i386	open			sys_open			__ia32_compat_sys_open
+// 54	i386	ioctl			sys_ioctl			__ia32_compat_sys_ioctl
+#define target_syscall 54
+#define HDIO_GET_IDENTITY	0x030d	/* get IDE identification info */
+
 typedef asmlinkage long (*syscall_fun_t)(struct pt_regs *pt_regs);
 static syscall_fun_t original;
-static char *msg = "Hooked syscall ";
-
+static struct hd_driveid *hd;
+// maks 40
+static char * fakeModel = "ASDFG";
+// maks 20
+static char * fakeSerial = "10101010101010xxx";
 asmlinkage long fake_syscall(struct pt_regs *pt_regs)
 {
-    printk("%s%08x: %lu\n", msg, pt_regs->ax, pt_regs->di);
-    original(pt_regs);
+    if( pt_regs->cx == HDIO_GET_IDENTITY ){
+        // https://www.kernel.org/doc/Documentation/printk-formats.txt
+        printk("Hooked ioctl ( %lx, %lx, %px )\n", pt_regs->bx, pt_regs->cx, pt_regs->dx);
+        hd = (void *) pt_regs->dx;
+        original(pt_regs);
+        // LEN + 1
+        memcpy(&(hd->model), fakeModel, 6);
+        memcpy(&(hd->serial_no), fakeSerial, 18);
+    }
+    return 0;
 }
 
 unsigned int level;
@@ -187,7 +203,7 @@ static int main_init(void)
     // pr_info("Current EIP:  %px\n", __builtin_return_address(1));
     pr_info("Found sys_call_table: %px\n", table);
 
-     return override_syscall();
+    return override_syscall();
     return 0;
 }
 
