@@ -1,44 +1,31 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/unistd.h>
-#include <linux/utsname.h>
-#include <asm/pgtable.h>
-#include <linux/kprobes.h>
-#include <linux/ftrace.h>
 #include <linux/linkage.h>
 #include <linux/slab.h>
-#include <linux/uaccess.h>
 #include <linux/version.h>
+#include <asm/pgtable.h>
 
-// https://github.com/linsec/hook-syscall
+typedef void (*fun)(void);
+static fun *table;
 
-/*
-Getting linux syscall table from IDT
-Kernel: Linux 5.6.3 x86_64
-*/
-
-typedef void (*sys_call_ptr_t)(void);
-
-static sys_call_ptr_t *sys_call_table = NULL;
-
-static int find_syscall_table64_test(void)
+// 64 bit kernel that support Binary Emulations
+// CONFIG_IA32_EMULATION=y
+static int find_syscall_table64_ia32(void)
 {
-    pr_info("Finding sys_call_table 64 BIT..\n");
     struct desc_ptr idtr;
     gate_desc *idt_table, *system_call_gate;
-    // interupt vector (syscall / int 0x80) handler offset & pointer
-    unsigned char *entry_INT80;
-    unsigned char *_system_call_ptr;
-    unsigned char *do_int80_syscall;
+    unsigned char *entry_INT80 = NULL;
+    unsigned char *do_int80_syscall = NULL;
     unsigned long offset;
     int i;
     u_char *off;
 
+    pr_info("Finding sys_call_table x86_64 IA32..\n");
     // Get CPU IDT table
     asm("sidt %0"
         : "=m"(idtr));
 
-    pr_info("IDT address %px  %u\n", idtr.address, idtr.size);
+    pr_info("IDT address %px  %u\n", (void *)idtr.address, idtr.size);
     // IDT address fffffe0000000000  4095
 
     if (idtr.size == 0 || idtr.address == 0)
@@ -48,13 +35,13 @@ static int find_syscall_table64_test(void)
     }
 
     // set table pointer
-    idt_table = (gate_desc *)idtr.address;
+    idt_table = (void *)idtr.address;
 
     // set gate_desc for int 0x80
     system_call_gate = &idt_table[0x80];
 
     // get int 0x80 handler offset
-    entry_INT80 = gate_offset(system_call_gate);
+    entry_INT80 = (void *)gate_offset(system_call_gate);
     // entry_INT80 = (system_call_gate->a & 0xffff) | (system_call_gate->b & 0xffff0000);
     // _system_call_ptr = (unsigned char *)entry_INT80;
 
@@ -67,7 +54,7 @@ static int find_syscall_table64_test(void)
 
     // entry_INT80_compat: 0xffffffff81002f21
 
-    pr_info("finding call OPCODE..\n", entry_INT80);
+    pr_info("finding call OPCODE..\n");
     for (i = 0; i < 256; i++)
     {
         entry_INT80++;
@@ -84,7 +71,7 @@ static int find_syscall_table64_test(void)
             // Adjust for $RIP of 5 byte (1 instruction )
             entry_INT80 += 5;
             do_int80_syscall = entry_INT80 + offset;
-            pr_info("do_int80_syscall offset %08x at %px\n", offset, do_int80_syscall);
+            pr_info("do_int80_syscall offset %08lx at %px\n", offset, do_int80_syscall);
             break;
         }
     }
@@ -93,7 +80,10 @@ static int find_syscall_table64_test(void)
         pr_err("Unable to locate do_int80_syscall\n");
         return -1;
     }
+
+    off = do_int80_syscall;
     // Direct call from sys_call_table
+    pr_info("finding direct call from sys_call_table\n");
     for (i = 0; i < 256; i++)
     {
         do_int80_syscall++;
@@ -104,15 +94,17 @@ static int find_syscall_table64_test(void)
         {
             // syscall address is here
             do_int80_syscall += 3;
-            sys_call_table = (0xffffffff00000000U) | *((u32 *)do_int80_syscall);
+            table = (void *)((0xffffffff00000000U) | *((u32 *)do_int80_syscall));
             return 0;
         }
     }
 
-    if( sys_call_table != NULL ){
+    if (table != NULL)
+    {
         // Found through call pattern
         return 0;
     }
+    do_int80_syscall = off;
     // Finding array access to sys_call_table
     pr_info("Finding sys_call_table array access\n");
     for (i = 0; i < 256; i++)
@@ -126,79 +118,86 @@ static int find_syscall_table64_test(void)
         {
             // syscall address is here
             do_int80_syscall += 4;
+            pr_info("Found at (%i) %px : %02x %02x %02x %02x\n", i,
+                    do_int80_syscall, *(do_int80_syscall), *(do_int80_syscall + 1), *(do_int80_syscall + 2), *(do_int80_syscall + 3));
 
-            sys_call_table = (0xffffffff00000000U) | *((u32 *)do_int80_syscall);
+            table = (void *)((0xffffffff00000000U) | *((u32 *)do_int80_syscall));
             return 0;
         }
     }
     return -1;
 }
 
-// https://github.com/reveng007/reveng_rtkit
-typedef unsigned long (*kallsyms_lookup_name_func)(const char *name);
-int lookup_syscall_table(void)
+// Using 32 Bit syscall, because the kernel is compiled with IA32 FLAG. and I targeting IT
+// https://elixir.bootlin.com/linux/v5.6.3/source/arch/x86/entry/syscalls/syscall_32.tbl
+// 1	i386	exit			sys_exit			__ia32_sys_exit
+#define target_syscall 1
+typedef asmlinkage long (*syscall_fun_t)(struct pt_regs *pt_regs);
+static syscall_fun_t original;
+static char *msg = "Hooked syscall ";
+
+asmlinkage long fake_syscall(struct pt_regs *pt_regs)
 {
-    pr_info("Looking up sys_call_table..");
-    if (kallsyms_lookup_name == NULL)
-    {
-        struct kprobe kp = {
-            .symbol_name = "kallsyms_lookup_name"};
-        kallsyms_lookup_name_func lookup_name;
-        register_kprobe(&kp);
-        if (kp.addr == NULL)
-        {
-            pr_err("Probe failed\n");
-            return -1;
-        }
-        lookup_name = (void *)kp.addr;
-        printk("kallsyms_lookup_name %px", kp.addr);
-        unregister_kprobe(&kp);
-        sys_call_table = lookup_name("sys_call_table");
-    }
-    else
-    {
-        sys_call_table = kallsyms_lookup_name("sys_call_table");
-    }
-    return sys_call_table == NULL;
+    printk("%s%08x: %lu\n", msg, pt_regs->ax, pt_regs->di);
+    original(pt_regs);
 }
 
-// static int prsyms_print_symbol(void *data, const char *namebuf,
-//                                struct module *module, unsigned long address)
-// {
-//     pr_info("### %lx\t%s\n", address, namebuf);
-//     return 0;
-// }
+unsigned int level;
+pte_t *pte;
+static int override_syscall(void)
+{
+    original = (syscall_fun_t)table[target_syscall];
+    pr_info("ORIGINAL %i : %px\n", target_syscall, original);
+    pr_info("FAKE     %i : %px\n", target_syscall, fake_syscall);
+    // unprotect sys_call_table memory page
+    pte = lookup_address((unsigned long)table, &level);
+    // change PTE to allow writing
+    set_pte_atomic(pte, pte_mkwrite(*pte));
+    table[target_syscall] = (void *)fake_syscall;
+    // reprotect page
+    set_pte_atomic(pte, pte_clear_flags(*pte, _PAGE_RW));
+    pr_info("override_syscall done");
+    return 0;
+}
+
+static int restore_syscall(void)
+{
+    // change PTE to allow writing
+    set_pte_atomic(pte, pte_mkwrite(*pte));
+    pr_info("sys_call_table writable");
+    table[target_syscall] = (fun)original;
+    // reprotect page
+    set_pte_atomic(pte, pte_clear_flags(*pte, _PAGE_RW));
+    return 0;
+}
 
 static int main_init(void)
 {
-    // if (lookup_syscall_table())
-    // {
-    // try by byte searching opcode
-    if (find_syscall_table64_test())
+    if (find_syscall_table64_ia32())
     {
         // Show all available symbols
         // kallsyms_on_each_symbol(prsyms_print_symbol, NULL);
     }
-    //}
 
-    if (sys_call_table == NULL)
+    if (table == NULL)
     {
         pr_err("Cannot find sys_call_table\n");
         return -1;
     }
     // pr_info("Current EIP:  %px\n", __builtin_return_address(1));
-    pr_info("Found sys_call_table: %px\n", sys_call_table);
+    pr_info("Found sys_call_table: %px\n", table);
+
+     return override_syscall();
     return 0;
 }
-// [    5.734572] sprint_symbol = ffffffff81093f28
-// [    7.093615] F1:  0000000000000000
-// [    7.093842] sprint_symbol = ffffffff81093f28
-// [    8.415684] F2:  0000000000000000
-// [    8.415883] sprint_symbol = ffffffff81093f28
 
 static void main_exit(void)
 {
-    // modify_sys_call_ioctl(org_ioctl);
+    if (original != NULL)
+    {
+        pr_info("Restoring hook..\n");
+        restore_syscall();
+    }
     pr_info("Exit..\n");
     return;
 }

@@ -1,14 +1,13 @@
 # Getting `sys_call_table` on hardened Kernel
 
-
     Get linux syscall table from Interupt Descriptor Table (IDT) on Kernel Linux 5.6.3 x86_64
 
+Referrences: 
 
-By tracking idt instruction
-
-// https://filippo.io/linux-syscall-table/
-// https://infosecwriteups.com/linux-kernel-module-rootkit-syscall-table-hijacking-8f1bc0bd099c
-// https://foxtrot-sq.medium.com/linux-rootkits-multiple-ways-to-hook-syscall-s-7001cc02a1e6
+- https://github.com/linsec/hook-syscall
+- https://filippo.io/linux-sysca// 252	i386	exit_group		sys_exit_group			__ia32_sys_exit_groupll-table/
+- https://infosecwriteups.com/linux-kernel-module-rootkit-syscall-table-hijacking-8f1bc0bd099c
+- https://foxtrot-sq.medium.com/linux-rootkits-multiple-ways-to-hook-syscall-s-7001cc02a1e6
 
 
 

@@ -26,7 +26,7 @@ QEMU = qemu-system-x86_64 \
 		-s
 
 all:
-	$(MAKE) CROSS_COMPILE=$(CROSS) -C $(KERNEL_PATH) M=$(PWD) modules
+	$(MAKE) ARCH=i386 -C $(KERNEL_PATH) M=$(PWD) modules
 	cp -f get_syscall.ko root/
 
 clean:
@@ -40,17 +40,15 @@ initrd:
 qemulate:
 	$(QEMU) -kernel $(KERNEL) $(X)
 
-test:
-	$(QEMU) -kernel $(TEST_KERNEL) $(X)
-
-konsole:
-	konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(KERNEL) $(X)
+qemulate_detect_changes:
+	konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(TEST_KERNEL) $(X) & \
+		KPID=$$!; \
+		inotifywait -e close_write -q Makefile *.c ; \
+		((make all || echo "**FAILED**") && echo "KILLING $$KPID" && kill -9 $$KPID || true)
 
 watch: all
-	while true; do \
-		make konsole & \
-		inotifywait -e close_write -q Makefile *.c ;\
-		(make all && kill -9 $$(pidof qemu-system-x86_64)) || echo "**FAILED**" ;\
+	@while true; do \
+		make qemulate_detect_changes ;\
 		sleep 0.5 ;\
 	done
-.PHONY: qemulate initrd test watch clean all konsole
+.PHONY: qemulate initrd watch clean all qemulate_detect_changes
