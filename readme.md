@@ -9,7 +9,18 @@ Referrences:
 - https://infosecwriteups.com/linux-kernel-module-rootkit-syscall-table-hijacking-8f1bc0bd099c
 - https://foxtrot-sq.medium.com/linux-rootkits-multiple-ways-to-hook-syscall-s-7001cc02a1e6
 
+## X64 IA32 Sys Call Table
 
+Offset between `ia32_sys_call_table` (currently found from IDT) and `sys_call_table` is `4032`.
+
+64Bit Kernel with 32bit binary support is using `ia32_sys_call_table`.
+
+```
+$4 = (<data variable, no debug info> *) 0xffffffff81e001e0 <sys_call_table>
+$5 = (<data variable, no debug info> *) 0xffffffff81e011a0 <ia32_sys_call_table>
+$5 - $4 = 4032
+
+```
 
 ## Kernel 5.6 Vanilla
 

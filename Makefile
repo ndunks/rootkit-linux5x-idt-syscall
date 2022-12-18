@@ -22,7 +22,7 @@ QEMU = qemu-system-x86_64 \
 		-drive format=raw,file=rootfs.img \
 		-initrd initrd.cpio \
 		-nic user,model=virtio,hostfwd=tcp::1233-:1233 \
-		-append "nokaslr debug earlyprintk=ttyS0 console=ttyS0" \
+		-append "nokaslr debug console=ttyS0" \
 		-s
 
 all:
@@ -41,9 +41,9 @@ qemulate:
 	$(QEMU) -kernel $(KERNEL) $(X)
 
 qemulate_detect_changes:
-	konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(KERNEL) $(X) & \
+	konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(TEST_KERNEL) $(X) & \
 		KPID=$$!; \
-		inotifywait -e close_write -q Makefile *.c ; \
+		inotifywait -e close_write -q Makefile initrd.cpio *.c ; \
 		((make all || echo "**FAILED**") && echo "KILLING $$KPID" && kill -9 $$KPID || true)
 
 watch: all
@@ -51,4 +51,9 @@ watch: all
 		make qemulate_detect_changes ;\
 		sleep 0.5 ;\
 	done
-.PHONY: qemulate initrd watch clean all qemulate_detect_changes
+mount:
+	sudo bash -c "losetup -f rootfs.img; mkdir -p rootfs; mount /dev/loop0 ./rootfs"
+umount:
+	sudo bash -c "umount ./rootfs; losetup -D"
+
+.PHONY: qemulate initrd watch clean all qemulate_detect_changes mount umount
