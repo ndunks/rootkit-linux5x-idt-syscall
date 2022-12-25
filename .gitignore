@@ -3,4 +3,5 @@
 /*.symvers
 /*.order
 /*.mod*
+/rootfs
 /rootfs.img

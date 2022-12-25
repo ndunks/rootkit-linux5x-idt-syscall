@@ -41,7 +41,7 @@ qemulate:
 	$(QEMU) -kernel $(KERNEL) $(X)
 
 qemulate_detect_changes:
-	konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(TEST_KERNEL) $(X) & \
+	@konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(TEST_KERNEL) $(X) & \
 		KPID=$$!; \
 		inotifywait -e close_write -q Makefile initrd.cpio *.c ; \
 		((make all || echo "**FAILED**") && echo "KILLING $$KPID" && kill -9 $$KPID || true)

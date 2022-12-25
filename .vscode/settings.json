@@ -1,0 +1,17 @@
+{
+    "files.associations": {
+        "*.projbuild": "makefile",
+        ".env": "ini",
+        "*.S": "gas",
+        "sysfs.h": "c",
+        "scsi_device.h": "c",
+        "device.h": "c",
+        "atomic.h": "c",
+        "version.h": "c",
+        "fs.h": "c",
+        "time.h": "c",
+        "get_syscall.h": "c",
+        "pgtable.h": "c",
+        "module.h": "c"
+    }
+}

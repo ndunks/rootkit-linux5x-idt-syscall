@@ -10,7 +10,8 @@
                 "/rifin/app/linux-5.6.3/arch/x86/include",
                 "/rifin/app/linux-5.6.3/arch/x86/include/generated",
                 "/rifin/app/linux-5.6.3/arch/x86/include/generated/uapi",
-                "/rifin/app/linux-5.6.3/arch/x86/include/uapi"
+                "/rifin/app/linux-5.6.3/arch/x86/include/uapi",
+                "/usr/include"
             ],
             "defines": [
                 "MODULE=",

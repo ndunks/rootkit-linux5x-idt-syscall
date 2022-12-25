@@ -11,7 +11,7 @@ int main(int argc, char ** argv)
     int fd, ret;
     if (argc <= 1)
     {
-        dev = "/dev/sda";
+        dev = "/dev/sdb";
     }
     if ((fd = open(dev, O_RDONLY | O_NONBLOCK)) < 0)
     {
