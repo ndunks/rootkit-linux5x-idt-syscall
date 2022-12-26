@@ -432,11 +432,36 @@ static int fake_atta_info(char *buf, int len)
     printk("    serial number: %s\n", tmp);
     return 0;
 }
-// https://elixir.bootlin.com/linux/v5.6.3/source/drivers/scsi/scsi_sysfs.c#L512
-static int override_sysfs(void)
+
+/** Find root dev by path */
+static struct block_device *find_root_dev(const char *path)
 {
     struct path root_path;
     struct kstat root_stat;
+    if (kern_path(path, LOOKUP_FOLLOW, &root_path) < 0)
+    {
+        printk("Fail get root path\n");
+        return NULL;
+    }
+    if (0 != vfs_getattr(&root_path, &root_stat, STATX_ALL, AT_NO_AUTOMOUNT | AT_SYMLINK_NOFOLLOW))
+    {
+        printk("Fail get root attr\n");
+        return NULL;
+    }
+    path_put(&root_path);
+    if ((MAJOR(root_stat.rdev) | MINOR(root_stat.rdev)))
+    {
+        // its a special device like /dev/sda
+        return bdget(root_stat.rdev);
+    }
+    else
+    {
+        return bdget(root_stat.dev);
+    }
+}
+// https://elixir.bootlin.com/linux/v5.6.3/source/drivers/scsi/scsi_sysfs.c#L512
+static int override_sysfs(void)
+{
     struct block_device *root_device;
     struct device *dev, *dev2;
     struct scsi_device *sdev;
@@ -445,15 +470,8 @@ static int override_sysfs(void)
     const int vpd_len = 64;
     unsigned char *buf;
 
-    if (kern_path("/rootfs", 0, &root_path) < 0)
-    {
-        printk("Fail get root path\n");
-        return -1;
-    }
-    vfs_getattr(&root_path, &root_stat, STATX_ALL, AT_NO_AUTOMOUNT | AT_SYMLINK_NOFOLLOW);
-    pr_info("root device number is 0x%08x; major = %d, minor = %d\n", root_stat.dev, MAJOR(root_stat.dev), MINOR(root_stat.dev));
+    root_device = find_root_dev("/dev/sdb");
 
-    root_device = bdget(root_stat.dev);
     if (root_device)
     {
         dev = part_to_dev(root_device->bd_part);
@@ -479,7 +497,6 @@ static int override_sysfs(void)
 
             // fakinf 0x89
             fake_atta_info(sdev->vpd_pg89->data, sdev->vpd_pg89->len);
-            
 
             buf = kmalloc(vpd_len, GFP_KERNEL);
             if (scsi_get_vpd_page(sdev, 0x80, buf, vpd_len) == 0)
@@ -501,9 +518,8 @@ static int override_sysfs(void)
     }
     else
     {
-        printk("Fail bdget\n");
+        printk("Fail finding root device\n");
     }
-    path_put(&root_path);
     return 0;
 }
 

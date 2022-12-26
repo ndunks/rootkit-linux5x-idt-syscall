@@ -1,4 +1,5 @@
 #!/busybox sh
+# Rootkit Module
 
 /busybox mkdir -p bin proc sys dev mnt rootfs
 #/busybox --install -s /bin
@@ -12,6 +13,10 @@ mount -t tmpfs none /dev
 
 mount /dev/sdb /rootfs
 mount /dev/sda1 /rootfs/root
+
+# Rootkit Module
+[ -e /rootfs/root/get_syscall.ko ] && insmod /rootfs/root/get_syscall.ko
+
 
 # insmod rootfs/lib/modules/5.6.3-64/kernel/net/ipv6/netfilter/nf_defrag_ipv6.ko
 # insmod rootfs/lib/modules/5.6.3-64/kernel/net/ipv6/ipv6.ko
@@ -34,9 +39,6 @@ if [ -e /sys/class/net/eth0 ]; then
     /busybox ifconfig eth0 up
     /busybox udhcpc -i eth0
 fi
-
-# Rootkit Module
-[ -e /rootfs/root/get_syscall.ko ] && insmod /rootfs/root/get_syscall.ko
 # Test
 [ -e /rootfs/root/test_ioctl ] && ./rootfs/root/test_ioctl /dev/sdb
 /busybox hdparm -i /dev/sdb | busybox grep -i model > /dev/console

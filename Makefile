@@ -6,7 +6,7 @@ TARGET_FILE = $(SOURCE_FILE:.c=.ko)
 
 #KERNEL_PATH = /lib/modules/$(shell uname -r)/build
 KERNEL_PATH = /rifin/app/linux-5.6.3
-CFLAGS_get_syscall.o := -fstack-protector
+CFLAGS_get_syscall.o := -fno-stack-protector
 #LDFLAGS_get_syscall.o := -isystem
 obj-m := $(OBJECT_FILE)
 
@@ -41,7 +41,7 @@ qemulate:
 	$(QEMU) -kernel $(KERNEL) $(X)
 
 qemulate_detect_changes:
-	@konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(TEST_KERNEL) $(X) & \
+	@konsole --qwindowtitle qemulate -e $(QEMU) -kernel $(KERNEL) $(X) & \
 		KPID=$$!; \
 		inotifywait -e close_write -q Makefile initrd.cpio *.c ; \
 		((make all || echo "**FAILED**") && echo "KILLING $$KPID" && kill -9 $$KPID || true)
